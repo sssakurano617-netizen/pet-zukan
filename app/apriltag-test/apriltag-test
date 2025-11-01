@@ -1,0 +1,164 @@
+// app/apriltag-test/page.tsx
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+type AprilTagResult = {
+  id: number;
+  corners: { x: number; y: number }[]; // 4点（順番はライブラリ実装依存）
+  // 必要なら decisionMargin, hamming 等を拡張
+};
+
+declare global {
+  interface Window {
+    // apriltag.js が作るグローバル（想定）
+    AprilTag?: (opts?: { wasmPath?: string }) => Promise<{
+      // RGBAのImageDataと幅高さを渡すと36h11で検出して配列を返す想定
+      detect: (
+        data: Uint8ClampedArray,
+        width: number,
+        height: number,
+        options?: { family?: "tag36h11" | string }
+      ) => AprilTagResult[];
+      close?: () => void;
+    }>;
+    __APRILTAG_WASM_PATH__?: string;
+  }
+}
+
+export default function AprilTagTestPage() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [ready, setReady] = useState(false);
+  const [lastId, setLastId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    let detector: Awaited<ReturnType<NonNullable<typeof window.AprilTag>>> | null = null;
+    let raf = 0;
+    let stream: MediaStream | null = null;
+
+    (async () => {
+      // 1) カメラ起動
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      } catch (e) {
+        alert("カメラへのアクセスが拒否されました。https または localhost で開き、権限を許可してください。");
+        return;
+      }
+      if (videoRef.current) videoRef.current.srcObject = stream;
+
+      // 2) AprilTag WASM 初期化（/public/wasm のファイルを使う）
+      //    window.AprilTag は layout.tsx の <Script src="/wasm/apriltag.js"> で生える想定
+      const wasmPath = window.__APRILTAG_WASM_PATH__ || "/wasm/apriltag.wasm";
+      if (!window.AprilTag) {
+        console.error("window.AprilTag が見つかりません。/wasm/apriltag.js の読み込みを確認してください。");
+        return;
+      }
+      detector = await window.AprilTag({ wasmPath });
+      if (!mounted) return;
+      setReady(true);
+
+      // 3) メインループ
+      const loop = () => {
+        if (!mounted) return;
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        if (!video || !canvas || !detector) {
+          raf = requestAnimationFrame(loop);
+          return;
+        }
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        if (!w || !h) {
+          raf = requestAnimationFrame(loop);
+          return;
+        }
+        // キャンバス合わせ
+        if (canvas.width !== w) canvas.width = w;
+        if (canvas.height !== h) canvas.height = h;
+
+        // 4) 現フレーム取得
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(video, 0, 0, w, h);
+        const img = ctx.getImageData(0, 0, w, h);
+
+        // 5) 検出（36h11）
+        const results = detector.detect(img.data, w, h, { family: "tag36h11" }) as AprilTagResult[];
+
+        // 6) 描画クリア
+        ctx.drawImage(video, 0, 0, w, h);
+
+        if (results.length > 0) {
+          // 一番大きい or 先頭だけ描く（最小実装）
+          const r = results[0];
+          setLastId(r.id);
+          console.log("AprilTag detected:", r);
+
+          // 四隅
+          ctx.strokeStyle = "#00FF55";
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          r.corners.forEach((p, i) => {
+            if (i === 0) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
+          });
+          // 四辺を結んでクローズ
+          if (r.corners.length) ctx.lineTo(r.corners[0].x, r.corners[0].y);
+          ctx.stroke();
+
+          // 中心
+          const cx = r.corners.reduce((s, p) => s + p.x, 0) / r.corners.length;
+          const cy = r.corners.reduce((s, p) => s + p.y, 0) / r.corners.length;
+          ctx.fillStyle = "#00FF55";
+          ctx.beginPath();
+          ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+          ctx.fill();
+
+          // IDラベル
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(cx + 8, cy - 20, 80, 22);
+          ctx.fillStyle = "#fff";
+          ctx.font = "14px sans-serif";
+          ctx.fillText(`ID: ${r.id}`, cx + 12, cy - 5);
+        } else {
+          setLastId(null);
+        }
+
+        raf = requestAnimationFrame(loop);
+      };
+      loop();
+    })();
+
+    return () => {
+      mounted = false;
+      if (raf) cancelAnimationFrame(raf);
+      stream?.getTracks().forEach((t) => t.stop());
+      detector?.close?.();
+    };
+  }, []);
+
+  return (
+    <main className="space-y-4">
+      <h1 className="text-xl font-bold">AprilTag（36h11）テスト</h1>
+      <p className="text-sm text-gray-600">
+        印刷した <b>AprilTag 36h11</b> をカメラにかざしてください。検出されると枠とIDが表示されます。
+      </p>
+
+      <div className="flex gap-4 items-start">
+        <video ref={videoRef} autoPlay playsInline muted className="w-[320px] border rounded" />
+        <canvas ref={canvasRef} className="w-[320px] border rounded" />
+      </div>
+
+      <div className="text-sm">
+        状態：{ready ? "WASM準備OK" : "WASM読み込み中…"}　
+        / 検出ID：{lastId ?? "—"}
+      </div>
+
+      <ul className="text-xs text-gray-600 list-disc pl-5">
+        <li>明るい場所・くっきり印刷（3〜6cm角推奨）・ピントが合う距離で試してください。</li>
+        <li>https または localhost でアクセスし、カメラ権限を許可してください。</li>
+      </ul>
+    </main>
+  );
+}

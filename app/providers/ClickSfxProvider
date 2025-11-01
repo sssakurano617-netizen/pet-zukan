@@ -1,0 +1,95 @@
+// app/providers/ClickSfxProvider.tsx
+"use client";
+
+import { useEffect, useRef } from "react";
+
+export default function ClickSfxProvider() {
+  const ctxRef = useRef<AudioContext | null>(null);
+  const bufRef = useRef<AudioBuffer | null>(null);
+  const readyRef = useRef(false);
+  const cooldownRef = useRef(0);
+  const COOLDOWN_MS = 120;
+
+  const ensureReady = async () => {
+    if (!ctxRef.current) {
+      const AC: typeof AudioContext =
+        (window as any).AudioContext || (window as any).webkitAudioContext;
+      ctxRef.current = new AC();
+      // console.log("[SFX] AudioContext created");
+    }
+    const ctx = ctxRef.current!;
+    if (ctx.state !== "running") {
+      await ctx.resume();
+      // console.log("[SFX] AudioContext resumed");
+    }
+    if (!bufRef.current) {
+      const res = await fetch("/sounds/decide.mp3");
+      if (!res.ok) {
+        console.warn("[SFX] fetch failed /sounds/decide.mp3", res.status);
+        return;
+      }
+      const arr = await res.arrayBuffer();
+      bufRef.current = await new Promise<AudioBuffer>((resolve, reject) => {
+        ctx.decodeAudioData(arr, resolve, reject);
+      });
+      // console.log("[SFX] buffer decoded");
+    }
+    readyRef.current = true;
+  };
+
+  const playOnce = () => {
+    const now = performance.now();
+    if (now - cooldownRef.current < COOLDOWN_MS) return;
+    cooldownRef.current = now;
+
+    if (!readyRef.current || !ctxRef.current || !bufRef.current) {
+      // console.warn("[SFX] not ready");
+      return;
+    }
+    const ctx = ctxRef.current!;
+    const src = ctx.createBufferSource();
+    src.buffer = bufRef.current;
+    const gain = ctx.createGain();
+    gain.gain.value = 1.0;
+    src.connect(gain).connect(ctx.destination);
+    src.start(0);
+  };
+
+  useEffect(() => {
+    // 1) 初回の物理操作で解錠＆音源読込
+    const onPointerDown = () => { ensureReady().catch(() => {}); };
+
+    // 2) 実クリック（isTrusted）のみ拾う
+    const onClickCapture = (ev: Event) => {
+      const me = ev as MouseEvent;
+      if (!me.isTrusted) return;
+      const el = ev.target as HTMLElement | null;
+      if (el?.closest('[data-sfx="off"]')) return;
+      playOnce();
+    };
+
+    // 3) ドウェル（合成クリック）用カスタムイベント
+    const onDwell = () => { playOnce(); };
+
+    // 4) デバッグ用：キーボード Enter/Space でも鳴らせる
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        ensureReady().then(playOnce).catch(() => {});
+      }
+    };
+
+    window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    document.addEventListener("click", onClickCapture, true);
+    window.addEventListener("app:dwellClick", onDwell as EventListener);
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("click", onClickCapture, true);
+      window.removeEventListener("app:dwellClick", onDwell as EventListener);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  return null;
+}

@@ -1,26 +1,203 @@
 @import "tailwindcss";
 
+/* ================================
+   テーマ変数（色・影・角丸）
+   ================================ */
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Primary (青) */
+  --primary-50:  #E7F2FF;
+  --primary-300: #7CC3FF;
+  --primary-500: #3AA7FF;
+  --primary-700: #0E6DCE;
+
+  /* Danger (赤) */
+  --danger-50:  #FFE9E5;
+  --danger-300: #FF9D85;
+  --danger-500: #FF7A5C;
+  --danger-700: #C52E22;
+
+  /* Accent (黄) */
+  --accent-500: #FFD24D;
+
+  /* Neutral */
+  --ink:   #1C1B22;
+  --muted: #6B7280;
+  --line:  rgba(28,27,34,0.24);
+
+  /* Surface */
+  --surface:   #FFFFFF;
+  --surface-2: #F8FAFF;
+
+  /* Radius */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 9999px; /* pill */
+  --radius-xl: 20px;
+
+  /* Shadow */
+  --shadow-elev-1: 0 2px 10px rgba(0,0,0,0.06);
+  --shadow-elev-2: 0 6px 18px rgba(0,0,0,0.10);
+  --shadow-press:  0 1px 4px rgba(0,0,0,0.12);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* ================================
+   ベーススタイル
+   ================================ */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, sans-serif;
+  cursor: none; /* ← マウスカーソルを非表示にする */
+}
+
+img, svg {
+  display: inline-block;
+}
+
+:root {
+  color-scheme: light dark;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #bbb;
+  border-radius: 9999px;
+}
+
+/* ================================
+   カスタム赤丸カーソル
+   ================================ */
+.cursor-red {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 32px;
+  border: 3px solid red;
+  border-radius: 50%;
+  pointer-events: none; /* クリック操作を邪魔しない */
+  transform: translate(-50%, -50%);
+  z-index: 99999;
+}
+
+/* ================================
+   ゲーム風ボタン
+   ================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 20px;
+  font-weight: 600;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-elev-1);
+  position: relative;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+/* 光沢（上の白い線） */
+.btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 2px;
+  right: 2px;
+  height: 20%;
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  background: linear-gradient(to bottom, rgba(255,255,255,0.55), transparent);
+  pointer-events: none;
+}
+
+/* Primary 青ボタン */
+.btn-primary {
+  background: linear-gradient(to bottom, #66B9FF, #2187E1);
+  color: white;
+}
+.btn-primary:hover {
+  box-shadow: var(--shadow-elev-2);
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  box-shadow: var(--shadow-press), inset 0 2px 0 rgba(255,255,255,0.22);
+  transform: translateY(1px);
+}
+
+/* Danger 赤ボタン */
+.btn-danger {
+  background: linear-gradient(to bottom, #FFA489, #DE4636);
+  color: white;
+}
+.btn-danger:hover {
+  box-shadow: var(--shadow-elev-2);
+  transform: translateY(-1px);
+}
+.btn-danger:active {
+  box-shadow: var(--shadow-press), inset 0 2px 0 rgba(255,255,255,0.22);
+  transform: translateY(1px);
+}
+
+/* Disabled */
+.btn:disabled {
+  background: #EAEFF7;
+  color: #9CA3AF;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+@keyframes slide-in-left {
+  0%   { transform: translateX(-40px); opacity: 0; }
+  60%  { transform: translateX(4px);   opacity: 1; }
+  100% { transform: translateX(0);     opacity: 1; }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 600ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+/* === Boss animations === */
+@layer utilities {
+  @keyframes rbBoing {
+    0%   { transform: scale(0.7) rotate(-2deg); filter: drop-shadow(0 12px 28px rgba(0,0,0,0.55)); }
+    55%  { transform: scale(1.08) rotate(0deg); }
+    75%  { transform: scale(0.96); }
+    100% { transform: scale(1); }
+  }
+  @keyframes rbPulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.02); }
+    100% { transform: scale(1); }
+  }
+  @keyframes rbAura {
+    0%   { opacity: 0; transform: scale(0.7); }
+    40%  { opacity: 0.55; }
+    100% { opacity: 0; transform: scale(1.6); }
+  }
+  @keyframes rbFlicker {
+    0%,100% { opacity: 1; }
+    50%     { opacity: 0.4; }
+  }
+
+  .rb-boing  { animation: rbBoing 900ms ease-out both, rbPulse 1400ms ease-in-out 900ms both; }
+  .rb-pulse  { animation: rbPulse 1600ms ease-in-out infinite; }
+  .rb-aura {
+    position: absolute;
+    inset: -14px;
+    margin: auto;
+    width: calc(100% + 28px);
+    height: calc(100% + 28px);
+    border-radius: 24px;
+    pointer-events: none;
+    background: radial-gradient(closest-side, rgba(255,255,255,0.18), rgba(99,102,241,0.25), transparent 70%);
+    animation: rbAura 1200ms ease-out infinite;
+  }
+  .rb-flicker { animation: rbFlicker 900ms ease-in-out infinite; }
 }
