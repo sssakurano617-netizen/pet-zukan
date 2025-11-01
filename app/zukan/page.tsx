@@ -1,42 +1,33 @@
-// app/zukan/page.tsx
 "use client";
 
 import useSWR, { mutate } from "swr";
 import Link from "next/link";
 import { useState } from "react";
+import type { Pet } from "@/lib/types";
+import { FIXED_ORDER, type FixedSpecies } from "@/lib/species";
+import { fetcher } from "@/lib/fetcher";
 
-type ServerPet = {
-  id: number;
-  species: string;
-  name: string;
-  role: string;
-  comment: string;
-  emoji?: string;
-};
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-// 固定順
-const FIXED_ORDER = ["犬", "猫", "ウサギ", "ハムスター", "魚", "鳥類", "その他"] as const;
-type FixedSpecies = (typeof FIXED_ORDER)[number];
+// Vercelでの静的最適化を無効化（SWRで動的に読む）
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default function Zukan() {
-  const { data, error, isLoading } = useSWR<ServerPet[]>("/api/pets", fetcher);
+  const { data, error, isLoading } = useSWR<Pet[]>("/api/pets", fetcher);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   if (error) return <main className="mx-auto max-w-5xl p-6">読み込みに失敗しました。</main>;
   if (isLoading || !data) return <main className="mx-auto max-w-5xl p-6">読み込み中…</main>;
 
   // グループ化
-  const grouped: Record<string, ServerPet[]> = data.reduce((acc, p) => {
+  const grouped: Record<string, Pet[]> = data.reduce((acc, p) => {
     (acc[p.species] ??= []).push(p);
     return acc;
-  }, {} as Record<string, ServerPet[]>);
+  }, {} as Record<string, Pet[]>);
 
   // 表示順：固定順 + 固定外
   const fixed = FIXED_ORDER.filter((sp) => grouped[sp]?.length > 0);
   const extras = Object.keys(grouped).filter(
-    (sp) => !FIXED_ORDER.includes(sp as FixedSpecies) // ← any禁止を解消
+    (sp) => !FIXED_ORDER.includes(sp as FixedSpecies)
   );
   const speciesOrder = [...fixed, ...extras];
 
@@ -91,16 +82,15 @@ export default function Zukan() {
                               role="menuitem"
                               onClick={(e) => {
                                 e.preventDefault();
+                                // 楽観的更新
                                 mutate(
                                   "/api/pets",
-                                  (prev: ServerPet[] | undefined) =>
+                                  (prev: Pet[] | undefined) =>
                                     prev ? prev.filter((q) => q.id !== p.id) : prev,
                                   false
                                 );
                                 fetch(`/api/pets/${p.id}`, { method: "DELETE" })
-                                  .then((res) => {
-                                    if (!res.ok) throw new Error();
-                                  })
+                                  .then((res) => { if (!res.ok) throw new Error(); })
                                   .catch(() => alert("削除に失敗しました"))
                                   .finally(() => mutate("/api/pets"));
                                 setOpenMenuId(null);

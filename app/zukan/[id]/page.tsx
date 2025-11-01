@@ -1,17 +1,15 @@
-// app/zukan/[id]/page.tsx
 "use client";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
-import type { Pet } from "@/lib/pets";
-import { speciesToEmoji } from "@/lib/pets";
+import type { Pet } from "@/lib/types";
+import { speciesToEmoji } from "@/lib/species";
+import { fetcher } from "@/lib/fetcher";
 
-const fetcher = (url: string) =>
-  fetch(url).then((r) => {
-    if (!r.ok) throw new Error(String(r.status));
-    return r.json();
-  });
+// Vercelでの静的最適化を無効化（SWRで動的に読む）
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default function PetDetailPage() {
   const params = useParams();
@@ -20,7 +18,7 @@ export default function PetDetailPage() {
 
   const isValidId = !!idStr && !Number.isNaN(Number(idStr));
 
-  // ★ フックはトップレベルで必ず呼ぶ。無効時はキーを null にして停止。
+  // フックは常にトップレベル。無効時は key を null にして停止
   const { data, error, isLoading } = useSWR<Pet[]>(
     isValidId ? "/api/pets" : null,
     fetcher,
@@ -31,9 +29,7 @@ export default function PetDetailPage() {
     return (
       <main className="mx-auto max-w-3xl p-6">
         <p className="mb-4">指定のIDが不正です。（id: {idStr ?? "不明"}）</p>
-        <Link className="text-blue-600 hover:underline" href="/zukan">
-          ← 図鑑に戻る
-        </Link>
+        <Link className="text-blue-600 hover:underline" href="/zukan">← 図鑑に戻る</Link>
       </main>
     );
   }
@@ -43,9 +39,7 @@ export default function PetDetailPage() {
     return (
       <main className="mx-auto max-w-3xl p-6">
         <p className="mb-4">読み込みに失敗しました（id: {idStr}）。</p>
-        <Link className="text-blue-600 hover:underline" href="/zukan">
-          ← 図鑑に戻る
-        </Link>
+        <Link className="text-blue-600 hover:underline" href="/zukan">← 図鑑に戻る</Link>
       </main>
     );
   }
@@ -55,9 +49,7 @@ export default function PetDetailPage() {
     return (
       <main className="mx-auto max-w-3xl p-6">
         <p className="mb-4">指定のペットが見つかりません。（id: {idStr}）</p>
-        <Link className="text-blue-600 hover:underline" href="/zukan">
-          ← 図鑑に戻る
-        </Link>
+        <Link className="text-blue-600 hover:underline" href="/zukan">← 図鑑に戻る</Link>
       </main>
     );
   }
@@ -76,9 +68,7 @@ export default function PetDetailPage() {
         </div>
       </header>
 
-      <Link className="text-blue-600 hover:underline" href="/zukan">
-        ← 図鑑に戻る
-      </Link>
+      <Link className="text-blue-600 hover:underline" href="/zukan">← 図鑑に戻る</Link>
     </main>
   );
 }
