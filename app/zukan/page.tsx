@@ -18,15 +18,14 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 // 固定順
 const FIXED_ORDER = ["犬", "猫", "ウサギ", "ハムスター", "魚", "鳥類", "その他"] as const;
+type FixedSpecies = (typeof FIXED_ORDER)[number];
 
 export default function Zukan() {
   const { data, error, isLoading } = useSWR<ServerPet[]>("/api/pets", fetcher);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
-  if (error)
-    return <main className="mx-auto max-w-5xl p-6">読み込みに失敗しました。</main>;
-  if (isLoading || !data)
-    return <main className="mx-auto max-w-5xl p-6">読み込み中…</main>;
+  if (error) return <main className="mx-auto max-w-5xl p-6">読み込みに失敗しました。</main>;
+  if (isLoading || !data) return <main className="mx-auto max-w-5xl p-6">読み込み中…</main>;
 
   // グループ化
   const grouped: Record<string, ServerPet[]> = data.reduce((acc, p) => {
@@ -37,7 +36,7 @@ export default function Zukan() {
   // 表示順：固定順 + 固定外
   const fixed = FIXED_ORDER.filter((sp) => grouped[sp]?.length > 0);
   const extras = Object.keys(grouped).filter(
-    (sp) => !FIXED_ORDER.includes(sp as any)
+    (sp) => !FIXED_ORDER.includes(sp as FixedSpecies) // ← any禁止を解消
   );
   const speciesOrder = [...fixed, ...extras];
 
@@ -115,11 +114,7 @@ export default function Zukan() {
                       </div>
 
                       {/* カード本体 */}
-                      <Link
-                        href={`/zukan/${p.id}`}
-                        className="block"
-                        onClick={() => setOpenMenuId(null)}
-                      >
+                      <Link href={`/zukan/${p.id}`} className="block" onClick={() => setOpenMenuId(null)}>
                         <div className="text-4xl">{p.emoji ?? "🐾"}</div>
                         <h2 className="mt-2 text-lg font-semibold">
                           {p.name}
